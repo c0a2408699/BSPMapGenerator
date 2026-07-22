@@ -9,8 +9,9 @@
 ## 実行方法
 
 1. Unity 6.2でプロジェクトを開く
-2. SampleSceneを開く
+2. Assets\Scenes\SampleSceneを開く
 3. Playを押す
+4. SceneビューでMainCameraを任意の場所へ移動
 
 ## プロジェクトの概要
 
