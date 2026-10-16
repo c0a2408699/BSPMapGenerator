@@ -5,7 +5,6 @@ using UnityEngine.Rendering;
 //------------MeshCombiner複数のメッシュを統合するスクリプト------------
 //使用できる関数
 //CombinePrefabMeshes(),CombineMeshes(),CombineMeshesMaterials()
-//それぞれ引数や返り値が違う
 //-------------------------------------------------------------------
 
 public static class MeshCombiner
@@ -17,7 +16,13 @@ public static class MeshCombiner
         return2ndMesh,
         rotate90,
         rotate180,
-        rotate270
+        rotate270,
+        rotate90x,
+        rotate180x,
+        rotate270x,
+        rotate90z,
+        rotate180z,
+        rotate270z
     }
 
     //デフォルトTypeMap
@@ -26,7 +31,9 @@ public static class MeshCombiner
         { "wall-1", CombineType.NoCombine },
         { "wall-2", CombineType.NoCombine },
         { "wall-3", CombineType.NoCombine },
-        { "wall-4", CombineType.NoCombine }
+        { "wall-4", CombineType.NoCombine },
+        { "position", CombineType.NoCombine },
+        { "randomPlaceObjects", CombineType.NoCombine}
     };
 
     //------------CombinePrefabMeshes()-----------
@@ -213,6 +220,12 @@ public static class MeshCombiner
             case CombineType.rotate90:  return Matrix4x4.Rotate(Quaternion.Euler(0f, 90f, 0f));
             case CombineType.rotate180: return Matrix4x4.Rotate(Quaternion.Euler(0f, 180f, 0f));
             case CombineType.rotate270: return Matrix4x4.Rotate(Quaternion.Euler(0f, 270f, 0f));
+            case CombineType.rotate90x:  return Matrix4x4.Rotate(Quaternion.Euler(90f, 0f, 0f));
+            case CombineType.rotate180x: return Matrix4x4.Rotate(Quaternion.Euler(180f, 0f, 0f));
+            case CombineType.rotate270x: return Matrix4x4.Rotate(Quaternion.Euler(270f, 0f, 0f));
+            case CombineType.rotate90z:  return Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, 90f));
+            case CombineType.rotate180z: return Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, 180f));
+            case CombineType.rotate270z: return Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, 270f));
             default:                    return Matrix4x4.identity;
         }
     }
@@ -224,28 +237,64 @@ public static class MeshCombiner
         public CombineType? rotation;
     }
 
+    //--------------------------------------------
+    //【修正箇所】
+    //「スキップ(NoCombine) / return2ndMesh」の判定と「回転(rotate90/180/270)」の判定を
+    //別々の確定フラグ(categoryDecided)で管理する。
+    //
+    //・skip / isReturn2nd は、自分自身(target)に一番近い階層で見つかった指定を優先し、
+    //  一度決まったら(categoryDecided = true)、それより外側(親・祖先)に別の指定が
+    //  見つかっても上書きしない。
+    //・rotation は従来通り、一番近い階層の指定を優先しつつ、
+    //  skip/isReturn2ndの決定に関わらず祖先方向への探索を継続する
+    //  （親のrotate180などが子にちゃんと継承されるようにするため）。
+    //
+    //(修正前は return2ndMesh が見つかっても break するだけでループが継続し、
+    // さらに上の祖先が NoCombine（例："wall-1"〜"wall-4"）に一致すると
+    // isReturn2nd がセットされたまま skip = true で上書きされ、
+    // メインメッシュにもsubRoomObj側にも入らず消えてしまっていた。
+    // また、return2ndMesh判定時に即returnする案では、祖先のrotate180などを
+    // 拾えなくなってしまうため、判定の種類ごとにフラグを分けて対応する)
+    //--------------------------------------------
     private static CombineDecision ResolveCombineDecision(Transform target, Transform root, Dictionary<string, CombineType> combineTypeMap)
     {
         var decision = new CombineDecision();
+        bool categoryDecided = false; // skip / isReturn2nd がどちらか確定したか
+
         for (Transform current = target; current != null; current = current == root ? null : current.parent){
             if (!combineTypeMap.TryGetValue(current.name, out CombineType combineType)) continue;
 
             switch (combineType)
             {
                 case CombineType.NoCombine:
-                    decision.skip = true;
-                    return decision;
+                    if (!categoryDecided){
+                        decision.skip = true;
+                        categoryDecided = true;
+                    }
+                    break;
                 case CombineType.return2ndMesh:
-                    decision.isReturn2nd = true;
+                    if (!categoryDecided){
+                        decision.isReturn2nd = true;
+                        categoryDecided = true;
+                    }
                     break;
                 case CombineType.rotate90:
                 case CombineType.rotate180:
                 case CombineType.rotate270:
+                case CombineType.rotate90x:
+                case CombineType.rotate180x:
+                case CombineType.rotate270x:
+                case CombineType.rotate90z:
+                case CombineType.rotate180z:
+                case CombineType.rotate270z:
                     if (!decision.rotation.HasValue)
                         decision.rotation = combineType;
                     break;
             }
 
+            //skip/isReturn2ndと回転、両方とも確定したらこれ以上祖先を見る必要はない
+            if (categoryDecided && decision.rotation.HasValue)
+                break;
         }
         return decision;
     }
