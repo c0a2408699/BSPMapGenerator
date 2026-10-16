@@ -523,7 +523,6 @@ public class BSPMapGenerator : MonoBehaviour
                 chunkDatas.TryGetValue(chunkKey, out ChunkData chunkData);
                 CellData cellData = getCellData(cellKey);
 
-                TryQueueShadowBake(dx, dz, cellKey);
                 TryPlaceCellPrefab(cellKey, chunkKey, chunkData, cellData);
                 //TryplaceKeikoutouControlPanel(cellKey, chunkKey, chunkData, cellData);
             }
@@ -531,28 +530,6 @@ public class BSPMapGenerator : MonoBehaviour
         DeleteOutOfRangeCells();
     }
 
-    //シャドウベイク待機リストへの登録
-    private const int shadowBakeRange = 6;
-    void TryQueueShadowBake(int dx, int dz, Vector2Int cellKey)
-    {
-        bool withinShadowRange = dx > -shadowBakeRange && dx < shadowBakeRange
-            && dz > -shadowBakeRange && dz < shadowBakeRange;
-        bool withinPlaceRadius = dx > -placecellRadius + 1 && dx < placecellRadius - 1
-            && dz > -placecellRadius + 1 && dz < placecellRadius - 1;
-
-        if (!withinShadowRange || !withinPlaceRadius) return;
-        if (placeCell?.activeCellDatas == null) return;
-
-        if (!placeCell.activeCellDatas.TryGetValue(cellKey, out var activeCellData)
-            || activeCellData?.mainObj == null
-            || !activeCellData.shadowBakeReady
-            || activeCellData.shadowBaked)
-        {
-            return;
-        }
-
-        placeCell.pendingShadowBake.Add(cellKey);
-    }
 
     //プレハブ配置
     void TryPlaceCellPrefab(Vector2Int cellKey, Vector2Int chunkKey, ChunkData chunkData, CellData cellData)
